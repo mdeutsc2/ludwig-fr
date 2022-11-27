@@ -1,7 +1,7 @@
 
-### Ludwig
+### Ludwig-FR
 
-A lattice Boltzmann code for complex fluids
+A lattice Boltzmann code for complex fluids. This is a fork of the popular Ludwig LB code for complex fluids with additions made for the simulation of complex disclination structures in liquid crystals.
 
 [![Build Status](https://travis-ci.com/ludwig-cf/ludwig.svg?branch=develop)](https://travis-ci.com/ludwig-cf/ludwig)
 [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1998/badge)](https://bestpractices.coreinfrastructure.org/projects/1998)
