@@ -1015,6 +1015,9 @@ __host__ __device__ void grad_s7_boundary_wall(fe_lc_param_t * param,
     if (anchor->type == LC_ANCHORING_PLANAR) {
       lc_anchoring_planar_ct(anchor, qs, nhat, kappa1, q0, amp, c);
     }
+    if (anchor->type == LC_ANCHORING_PATTERNED){
+      /*TODO add lc_anchoring_patterned_ct in lc_anchoring_impl.h*/
+    }
   }
 
   return;

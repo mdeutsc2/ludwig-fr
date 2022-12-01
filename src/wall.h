@@ -48,7 +48,7 @@ struct wall_slip_s {
   int active;              /* slip conditions required at all? */
   double s[WALL_SLIP_MAX]; /* Table for fraction of slip per wall */
 };
-
+ 
 struct wall_param_s {
   int iswall;              /* Flag for flat walls */
   int isporousmedia;       /* Flag for porous media */

@@ -214,12 +214,16 @@ __host__ int blue_phase_init_rt(pe_t * pe, rt_t *rt,
       if (fe_param.wall.type == LC_ANCHORING_PLANAR) {
 	pe_info(pe, "Wall anchoring w2:           %14.7e\n", fe_param.wall.w2);
       }
-
+      if (fe_param.wall.type == LC_ANCHORING_PATTERNED){
+        pe_info(pe, "Patterned Defects, %u xdefects, %u ydefects, %u xspacing, %u yspacing\n",
+          fe_param.wall.xdefects,fe_param.wall.ydefects,fe_param.wall.xspacing,fe_param.wall.yspacing);
+      }
       /* Still need to get energy right ... */
       fe_param.anchoring_wall = fe_param.wall.type;
       fe_param.w1_wall = fe_param.wall.w1;
       fe_param.w2_wall = fe_param.wall.w2;
     }
+      
 
     if (fe_param.coll.type != LC_ANCHORING_NONE) {
 
@@ -313,6 +317,24 @@ __host__ int blue_phase_init_rt(pe_t * pe, rt_t *rt,
       fe_param.nfix[Z] = rmod*nfix[Z];
     }
 
+    if (strcmp(type_wall, "patterned") == 0) {
+      int ndefects,xdefects,ydefects,xspacing,yspacing;
+      double defects[9] = {0.0, 0.0, 0.0,
+                           0.0, 0.0, 0.0,
+                           0.0, 0.0, 0.0};
+      pe_info(pe,"Patterned type");
+      fe_param.anchoring_wall = LC_ANCHORING_PATTERNED;
+      w1_wall = w1;
+      w2_wall = 0.0;
+      rt_int_parameter(rt, "lc_wall_patterned_ndefects", &ndefects);
+      rt_double_nvector(rt, "lc_wall_patterned_defects", 9, &defects, RT_FATAL);
+      rt_int_parameter(rt, "lc_wall_patterned_xdefects", &xdefects);
+      rt_int_parameter(rt, "lc_wall_patterned_ydefects", &ydefects);
+      rt_int_parameter(rt, "lc_wall_patterned_xspacing", &xspacing);
+      rt_int_parameter(rt, "lc_wall_patterned_yspacing", &yspacing);
+      pe_info(pe, "Patterned type only works with s7 method");
+    }
+
     /* Colloids default, then look for specific value */
 
     if (strcmp(type, "normal") == 0) w2 = 0.0;
@@ -336,6 +358,7 @@ __host__ int blue_phase_init_rt(pe_t * pe, rt_t *rt,
       if (strcmp(type_wall, "normal") == 0) w2_wall = 0.0;
       if (strcmp(type_wall, "planar") == 0) w2_wall = w1_wall;
       if (strcmp(type_wall, "fixed")  == 0) w2_wall = 0.0;
+      if (strcmp(type_wall, "patterned") == 0) w2_wall = 0.0;
     }
 
     fe_param.w1_wall = w1_wall;
@@ -693,21 +716,34 @@ int blue_phase_rt_wall_anchoring(pe_t * pe, rt_t * rt, rt_enum_t rt_err_level,
       ierr += rt_key_required(rt, "lc_wall_fixed_orientation", rt_err_level);
       rt_double_parameter(rt, "lc_wall_anchoring_w1", &wall->w1);
       rt_double_parameter_vector(rt, "lc_wall_fixed_orientation", wall->nfix);
-
-      /* Make sure this is a vlaid unit vector here */
+      /* Make sure this is a valid unit vector here */
       {
-	double x2 = wall->nfix[X]*wall->nfix[X];
-	double y2 = wall->nfix[Y]*wall->nfix[Y];
-	double z2 = wall->nfix[Z]*wall->nfix[Z];
-	if (fabs(x2 + y2 + z2) < DBL_EPSILON) {
-	  ierr += 1;
-	  rt_vinfo(rt, rt_err_level, "%s'n",
-		   "lc_wall_fixed_orientation must be non-zero\n");
-	}
-	wall->nfix[X] /= sqrt(x2 + y2 + z2);
-	wall->nfix[Y] /= sqrt(x2 + y2 + z2);
-	wall->nfix[Z] /= sqrt(x2 + y2 + z2);
+        double x2 = wall->nfix[X]*wall->nfix[X];
+        double y2 = wall->nfix[Y]*wall->nfix[Y];
+        double z2 = wall->nfix[Z]*wall->nfix[Z];
+        if (fabs(x2 + y2 + z2) < DBL_EPSILON) {
+          ierr += 1;
+          rt_vinfo(rt, rt_err_level, "%s'n",
+            "lc_wall_fixed_orientation must be non-zero\n");
+        }
+        wall->nfix[X] /= sqrt(x2 + y2 + z2);
+        wall->nfix[Y] /= sqrt(x2 + y2 + z2);
+        wall->nfix[Z] /= sqrt(x2 + y2 + z2);
       }
+      break;
+    case LC_ANCHORING_PATTERNED:
+      ierr += rt_key_required(rt, "lc_wall_anchoring_w1", rt_err_level);
+      rt_int_parameter(rt, "lc_wall_patterned_ndefects", &wall->ndefects);
+      if (wall->ndefects > 9) {
+        rt_vinfo(rt,RT_FATAL, "%s'n", 
+          "ndefects>9 (3x3) not supported yet. Change in lc_anchoring.h and blue_phase_rt.c\n");
+      }
+      /* must allocate defects here?*/
+      rt_double_nvector(rt, "lc_wall_patterned_defects", 9, wall->defects, RT_FATAL);
+      rt_int_parameter(rt, "lc_wall_patterned_xdefects", &wall->xdefects);
+      rt_int_parameter(rt, "lc_wall_patterned_ydefects", &wall->ydefects);
+      rt_int_parameter(rt, "lc_wall_patterned_xspacing", &wall->xspacing);
+      rt_int_parameter(rt, "lc_wall_patterned_yspacing", &wall->yspacing);
       break;
     default:
       /* Not valid. */

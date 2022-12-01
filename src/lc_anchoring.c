@@ -34,6 +34,7 @@ lc_anchoring_enum_t lc_anchoring_type_from_string(const char * string) {
   if (strcmp(string, "normal") == 0) lc_anchor = LC_ANCHORING_NORMAL;
   if (strcmp(string, "planar") == 0) lc_anchor = LC_ANCHORING_PLANAR;
   if (strcmp(string, "fixed")  == 0) lc_anchor = LC_ANCHORING_FIXED;
+  if (strcmp(string, "patterned") == 0) lc_anchor = LC_ANCHORING_PATTERNED;
 
   return lc_anchor;
 }
@@ -57,6 +58,9 @@ const char * lc_anchoring_type_from_enum(lc_anchoring_enum_t type) {
     break;
   case LC_ANCHORING_FIXED:
     return "fixed";
+    break;
+  case LC_ANCHORING_PATTERNED:
+    return "patterned";
     break;
   case LC_ANCHORING_INVALID:
     return "invalid";

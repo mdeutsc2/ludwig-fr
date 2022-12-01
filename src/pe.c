@@ -177,6 +177,7 @@ __host__ int pe_message(pe_t * pe) {
 	   compiler.minor, compiler.patchlevel);
     printf("  version-string: %s\n", compiler.version);
     printf("\n");
+    printf("test string - MD\n");
 
     /* Compilation */
     assert(printf("Note assertions via standard C assert() are on.\n\n"));

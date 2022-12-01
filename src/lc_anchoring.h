@@ -21,6 +21,7 @@ typedef enum lc_anchoring_enum {
   LC_ANCHORING_PLANAR,
   LC_ANCHORING_NORMAL, 
   LC_ANCHORING_FIXED,
+  LC_ANCHORING_PATTERNED,
   LC_ANCHORING_INVALID /* Last entry */
 } lc_anchoring_enum_t;
 
@@ -31,6 +32,12 @@ struct lc_anchoring_param_s {
   double w1;                     /* Free energy constant w1 */
   double w2;                     /* Free energy constant w2 (planar only) */
   double nfix[3];                /* Preferred director (fixed type only) */
+  int ndefects;
+  int xdefects;
+  int ydefects;
+  int xspacing;
+  int yspacing;
+  double defects[9]; /*flexible array must be at the end of the struct*/
 };
 
 const char * lc_anchoring_type_from_enum(lc_anchoring_enum_t type);

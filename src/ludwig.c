@@ -481,7 +481,7 @@ void ludwig_run(const char * inputfile) {
     cudaGetDeviceCount(&nd);
     id = pe_mpi_rank(ludwig->pe) % nd;
     cudaSetDevice(id);
-  }
+  } 
 #endif
   rt_create(ludwig->pe, &ludwig->rt);
   rt_read_input_file(ludwig->rt, inputfile);
