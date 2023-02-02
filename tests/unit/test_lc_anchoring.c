@@ -111,7 +111,7 @@ int test_lc_anchoring_type_from_enum(void) {
   name = lc_anchoring_type_from_enum(LC_ANCHORING_FIXED);
   assert(strcmp(name, "fixed") == 0);
 
-  return strcmp(name, "fixed");
+  return 0;
 }
 
 /*****************************************************************************
@@ -218,8 +218,6 @@ int test_lc_anchoring_fixed_q0() {
 
 int test_lc_anchoring_fixed_ct(void) {
 
-  int ifail = 0;
-
   double a0 = 2.0;
   double kappa1 = 0.01;
   double q0 = 0.0;
@@ -240,12 +238,11 @@ int test_lc_anchoring_fixed_ct(void) {
       for (int ib = 0; ib < 3; ib++) {
 	double ct0 = -anchor.w1*(qs[ia][ib] - qfix[ia][ib]);
 	assert(fabs(ct0 - ct[ia][ib]) < DBL_EPSILON);
-	if (fabs(ct0 - ct[ia][ib]) > DBL_EPSILON) ifail += 1;
       }
     }
   }
 
-  return ifail;
+  return 0;
 }
 
 /*****************************************************************************
@@ -288,8 +285,6 @@ int test_lc_anchoring_normal_q0(void) {
 
 int test_lc_anchoring_normal_ct(void) {
 
-  int ifail = 0;
-
   double a0 = 2.0;
   double kappa1 = 0.01;
   double q0 = 0.0;
@@ -310,12 +305,11 @@ int test_lc_anchoring_normal_ct(void) {
       for (int ib = 0; ib < 3; ib++) {
 	double ct0 = -anchor.w1*(qs[ia][ib] - qnormal[ia][ib]);
 	assert(fabs(ct0 - ct[ia][ib]) < DBL_EPSILON);
-	if (fabs(ct0 - ct[ia][ib]) > DBL_EPSILON) ifail += 1;
       }
     }
   }
   
-  return ifail;
+  return 0;
 }
 
 /*****************************************************************************
@@ -326,8 +320,6 @@ int test_lc_anchoring_normal_ct(void) {
 
 int test_lc_anchoring_planar_qtilde(void) {
 
-  int ifail = 0;
-
   double a0 = 3.0;
   double qs[3][3] = {{1.0,2.0,3.0}, {4.0,5.0,6.0}, {7.0,8.0,9.0}};
   double qtilde[3][3] = {0};
@@ -337,13 +329,11 @@ int test_lc_anchoring_planar_qtilde(void) {
   for (int ia = 0; ia < 3; ia++) {
     for (int ib = 0; ib < 3; ib++) {
       double dab = 1.0*(ia == ib);
-      double diff = fabs(qtilde[ia][ib] - (qs[ia][ib] + 0.5*a0*dab));
-      assert(fabs(diff) < DBL_EPSILON);
-      if (fabs(diff) > DBL_EPSILON) ifail += 1;
+      assert(fabs(qtilde[ia][ib] - (qs[ia][ib] + 0.5*a0*dab)) < DBL_EPSILON);
     }
   }
 
-  return ifail;
+  return 0;
 }
 
 /*****************************************************************************
@@ -355,8 +345,6 @@ int test_lc_anchoring_planar_qtilde(void) {
  *****************************************************************************/
 
 int test_lc_anchoring_planar_ct(void) {
-
-  int ifail = 0;
 
   double a0 = 2.0;
   double kappa1 = 0.0;
@@ -383,7 +371,6 @@ int test_lc_anchoring_planar_ct(void) {
       for (int ib = 0; ib < 3; ib++) {
 	double fe = -anchor.w1*(qtilde[ia][ib] - qtperp[ia][ib]);
 	assert(fabs(fe - ct[ia][ib]) < DBL_EPSILON);
-	if (fabs(fe - ct[ia][ib]) > DBL_EPSILON) ifail += 1;
       }
     }
   }
@@ -412,12 +399,11 @@ int test_lc_anchoring_planar_ct(void) {
       for (int ib = 0; ib < 3; ib++) {
 	double fe = -2.0*anchor.w2*(qt2  - 2.25*a0*a0)*qtilde[ia][ib];
 	assert(fabs(fe - ct[ia][ib]) < DBL_EPSILON);
-	if (fabs(fe - ct[ia][ib]) > DBL_EPSILON) ifail += 1; 
       }
     }
   }
 
-  return ifail;
+  return 0;
 }
 
 /*****************************************************************************

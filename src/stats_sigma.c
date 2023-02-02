@@ -134,12 +134,7 @@ int stats_sigma_create(pe_t * pe, cs_t * cs, fe_symm_t * fe, field_t * phi,
 
   /* Initialise the order parameter field */
 
-  {
-    /* May want to revisit exact centring of drop. */
-    int is_centred = 0;
-    field_phi_init_drop(phi, obj->drop.xi0, obj->drop.radius,
-			obj->drop.phimax, is_centred);
-  }
+  field_phi_init_drop(phi, obj->drop.xi0, obj->drop.radius, obj->drop.phimax);
 
   /* Print some information */
   /* The diffusivity is mobility/A (with A < 0) */

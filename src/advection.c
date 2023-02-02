@@ -557,6 +557,7 @@ __global__ void advection_le_1st_kernel(kernel_ctxt_t * ktx,
 
   for_simt_parallel(kindex, kiter, 1) {
 
+    int ia;
     int n;
     int ic, jc, kc;
     int index0, index1, index;
@@ -573,11 +574,13 @@ __global__ void advection_le_1st_kernel(kernel_ctxt_t * ktx,
 
     /* west face (icm1 and ic) */
 
-    hydro_u(hydro, index0, u0);
+    for (ia = 0; ia < 3; ia++) {
+      u0[ia] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index0, ia)];
+    }
 
     index1 = kernel_coords_index(ktx, icm1, jc, kc);
-    hydro_u(hydro, index1, u1);
 
+    u1[X] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, X)];
     u = 0.5*(u0[X] + u1[X]);
 
     index = index0;
@@ -592,8 +595,8 @@ __global__ void advection_le_1st_kernel(kernel_ctxt_t * ktx,
     /* east face (ic and icp1) */
 
     index1 = kernel_coords_index(ktx, icp1, jc, kc);
-    hydro_u(hydro, index1, u1);
 
+    u1[X] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, X)];
     u = 0.5*(u0[X] + u1[X]);
 
     index = index0;
@@ -607,8 +610,8 @@ __global__ void advection_le_1st_kernel(kernel_ctxt_t * ktx,
     /* y direction */
 
     index1 = kernel_coords_index(ktx, ic, jc+1, kc);
-    hydro_u(hydro, index1, u1);
 
+    u1[Y] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, Y)];
     u = 0.5*(u0[Y] + u1[Y]);
 
     index = index0;
@@ -622,8 +625,8 @@ __global__ void advection_le_1st_kernel(kernel_ctxt_t * ktx,
     /* z direction */
 
     index1 = kernel_coords_index(ktx, ic, jc, kc+1);
-    hydro_u(hydro, index1, u1);
 
+    u1[Z] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, Z)];
     u = 0.5*(u0[Z] + u1[Z]);
 
     index = index0;
@@ -706,7 +709,7 @@ __global__ void advection_2nd_kernel(kernel_ctxt_t * ktx, advflux_t * flux,
 
   for_simt_parallel(kindex, kiter, 1) {
 
-    int n;
+    int ia, n;
     int ic, jc, kc;
     int icm1, icp1;
     int index0, index1;
@@ -721,13 +724,14 @@ __global__ void advection_2nd_kernel(kernel_ctxt_t * ktx, advflux_t * flux,
     icm1 = lees_edw_ic_to_buff(flux->le, ic, -1);
     icp1 = lees_edw_ic_to_buff(flux->le, ic, +1);
 
-    hydro_u(hydro, index0, u0);
+    for (ia = 0; ia < NHDIM; ia++) {
+      u0[ia] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index0, ia)];
+    }
 
     /* west face (ic - 1 and ic) */
 
     index1 = kernel_coords_index(ktx, icm1, jc, kc);
-    hydro_u(hydro, index1, u1);
-
+    u1[X] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, X)];
     u = 0.5*(u0[X] + u1[X]);
 
     for (n = 0; n < field->nf; n++) {
@@ -739,8 +743,7 @@ __global__ void advection_2nd_kernel(kernel_ctxt_t * ktx, advflux_t * flux,
     /* east face (ic and ic + 1) */
 
     index1 = kernel_coords_index(ktx, icp1, jc, kc);
-    hydro_u(hydro, index1, u1);
-
+    u1[X] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, X)];
     u = 0.5*(u0[X] + u1[X]);
 
     for (n = 0; n < flux->nf; n++) {
@@ -752,8 +755,7 @@ __global__ void advection_2nd_kernel(kernel_ctxt_t * ktx, advflux_t * flux,
     /* y direction */
 
     index1 = kernel_coords_index(ktx, ic, jc+1, kc);
-    hydro_u(hydro, index1, u1);
-
+    u1[Y] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, Y)];
     u = 0.5*(u0[Y] + u1[Y]);
 
     for (n = 0; n < flux->nf; n++) {
@@ -765,8 +767,7 @@ __global__ void advection_2nd_kernel(kernel_ctxt_t * ktx, advflux_t * flux,
     /* z direction */
 
     index1 = kernel_coords_index(ktx, ic, jc, kc+1);
-    hydro_u(hydro, index1, u1);
-
+    u1[Z] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, Z)];
     u = 0.5*(u0[Z] + u1[Z]);
 
     for (n = 0; n < flux->nf; n++) {
@@ -823,10 +824,8 @@ __global__ void advection_2nd_kernel_v(kernel_ctxt_t * ktx, advflux_t * flux,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index0[iv], ia);
-	u0[ia][iv] = hydro->u->data[haddr];
+	u0[ia][iv] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index0[iv], ia)];
       }
-
     }
 
     /* west face (ic - 1 and ic) */
@@ -835,8 +834,7 @@ __global__ void advection_2nd_kernel_v(kernel_ctxt_t * ktx, advflux_t * flux,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index1[iv], ia);
-	u1[ia][iv] = hydro->u->data[haddr];
+	u1[ia][iv] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1[iv], ia)];
       }
     }
 
@@ -855,8 +853,7 @@ __global__ void advection_2nd_kernel_v(kernel_ctxt_t * ktx, advflux_t * flux,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index1[iv], ia);
-	u1[ia][iv] = hydro->u->data[haddr];
+	u1[ia][iv] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1[iv], ia)];
       }
     }
 
@@ -876,8 +873,7 @@ __global__ void advection_2nd_kernel_v(kernel_ctxt_t * ktx, advflux_t * flux,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index1[iv], ia);
-	u1[ia][iv] = hydro->u->data[haddr];
+	u1[ia][iv] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1[iv], ia)];
       }
     }
 
@@ -897,8 +893,7 @@ __global__ void advection_2nd_kernel_v(kernel_ctxt_t * ktx, advflux_t * flux,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index1[iv], ia);
-	u1[ia][iv] = hydro->u->data[haddr];
+	u1[ia][iv] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1[iv], ia)];
       }
     }
 
@@ -1014,8 +1009,7 @@ __global__ void advection_le_3rd_kernel_v(kernel_ctxt_t * ktx,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index0[iv], ia);
-	u0[ia][iv] = hydro->u->data[haddr];
+	u0[ia][iv] = hydro->u[addr_rank1(hydro->nsite,NHDIM,index0[iv],ia)];
       }
     }
 
@@ -1032,8 +1026,7 @@ __global__ void advection_le_3rd_kernel_v(kernel_ctxt_t * ktx,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index1[iv], ia);
-	u1[ia][iv] = hydro->u->data[haddr];
+	u1[ia][iv] = hydro->u[addr_rank1(hydro->nsite,NHDIM,index1[iv],ia)];
       }
     }
 
@@ -1065,8 +1058,7 @@ __global__ void advection_le_3rd_kernel_v(kernel_ctxt_t * ktx,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index3[iv], ia);
-	u1[ia][iv] = hydro->u->data[haddr];
+	u1[ia][iv] = hydro->u[addr_rank1(hydro->nsite,NHDIM,index3[iv],ia)];
       }
     }
 
@@ -1105,8 +1097,7 @@ __global__ void advection_le_3rd_kernel_v(kernel_ctxt_t * ktx,
  
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index1[iv], ia);
-	u1[ia][iv] = hydro->u->data[haddr];
+	u1[ia][iv] = hydro->u[addr_rank1(fld->nsites,NHDIM,index1[iv],ia)];
       }
     }
 
@@ -1144,8 +1135,7 @@ __global__ void advection_le_3rd_kernel_v(kernel_ctxt_t * ktx,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index1[iv], ia);
-	u1[ia][iv] = hydro->u->data[haddr];
+	u1[ia][iv] = hydro->u[addr_rank1(hydro->nsite,NHDIM,index1[iv],ia)];
       }
     }
 
@@ -1692,15 +1682,17 @@ __global__ void advflux_cs_1st_kernel(kernel_ctxt_t * ktx,
     ic = kernel_coords_ic(ktx, kindex);
     jc = kernel_coords_jc(ktx, kindex);
     kc = kernel_coords_kc(ktx, kindex);
-
     index0 = kernel_coords_index(ktx, ic, jc, kc);
-    hydro_u(hydro, index0, u0);
+
+    u0[X] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index0, X)];
+    u0[Y] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index0, Y)];
+    u0[Z] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index0, Z)];
 
     /* x-direction (between ic and ic+1) */
 
     index1 = kernel_coords_index(ktx, ic+1, jc, kc);
-    hydro_u(hydro, index1, u1);
 
+    u1[X] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, X)];
     u = 0.5*(u0[X] + u1[X]);
 
     index = index0;
@@ -1714,8 +1706,8 @@ __global__ void advflux_cs_1st_kernel(kernel_ctxt_t * ktx,
     /* y direction */
 
     index1 = kernel_coords_index(ktx, ic, jc+1, kc);
-    hydro_u(hydro, index1, u1);
 
+    u1[Y] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, Y)];
     u = 0.5*(u0[Y] + u1[Y]);
 
     index = index0;
@@ -1729,8 +1721,8 @@ __global__ void advflux_cs_1st_kernel(kernel_ctxt_t * ktx,
     /* z direction */
 
     index1 = kernel_coords_index(ktx, ic, jc, kc+1);
-    hydro_u(hydro, index1, u1);
 
+    u1[Z] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, Z)];
     u = 0.5*(u0[Z] + u1[Z]);
 
     index = index0;
@@ -1783,13 +1775,15 @@ __global__ void advflux_cs_2nd_kernel(kernel_ctxt_t * ktx, advflux_t * flux,
     kc = kernel_coords_kc(ktx, kindex);
 
     index0 = kernel_coords_index(ktx, ic, jc, kc);
-    hydro_u(hydro, index0, u0);
+
+    u0[X] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index0, X)];
+    u0[Y] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index0, Y)];
+    u0[Z] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index0, Z)];
 
     /* x-direction (between ic and ic + 1) */
 
     index1 = kernel_coords_index(ktx, ic+1, jc, kc);
-    hydro_u(hydro, index1, u1);
-
+    u1[X] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, X)];
     u = 0.5*(u0[X] + u1[X]);
 
     for (n = 0; n < flux->nf; n++) {
@@ -1801,8 +1795,7 @@ __global__ void advflux_cs_2nd_kernel(kernel_ctxt_t * ktx, advflux_t * flux,
     /* y direction */
 
     index1 = kernel_coords_index(ktx, ic, jc+1, kc);
-    hydro_u(hydro, index1, u1);
-
+    u1[Y] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, Y)];
     u = 0.5*(u0[Y] + u1[Y]);
 
     for (n = 0; n < flux->nf; n++) {
@@ -1814,8 +1807,7 @@ __global__ void advflux_cs_2nd_kernel(kernel_ctxt_t * ktx, advflux_t * flux,
     /* z direction */
 
     index1 = kernel_coords_index(ktx, ic, jc, kc+1);
-    hydro_u(hydro, index1, u1);
-
+    u1[Z] = hydro->u[addr_rank1(hydro->nsite, NHDIM, index1, Z)];
     u = 0.5*(u0[Z] + u1[Z]);
 
     for (n = 0; n < flux->nf; n++) {
@@ -1879,8 +1871,7 @@ __global__ void advflux_cs_3rd_kernel_v(kernel_ctxt_t * ktx,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index0[iv], ia);
-	u0[ia][iv] = hydro->u->data[haddr];
+	u0[ia][iv] = hydro->u[addr_rank1(hydro->nsite,NHDIM,index0[iv],ia)];
       }
     }
 
@@ -1896,8 +1887,7 @@ __global__ void advflux_cs_3rd_kernel_v(kernel_ctxt_t * ktx,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index3[iv], ia);
-	u1[ia][iv] = hydro->u->data[haddr];
+	u1[ia][iv] = hydro->u[addr_rank1(hydro->nsite,NHDIM,index3[iv],ia)];
       }
     }
 
@@ -1936,8 +1926,7 @@ __global__ void advflux_cs_3rd_kernel_v(kernel_ctxt_t * ktx,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index1[iv], ia);
-	u1[ia][iv] = hydro->u->data[haddr];
+	u1[ia][iv] = hydro->u[addr_rank1(field->nsites,NHDIM,index1[iv],ia)];
       }
     }
 
@@ -1975,8 +1964,7 @@ __global__ void advflux_cs_3rd_kernel_v(kernel_ctxt_t * ktx,
 
     for (ia = 0; ia < NHDIM; ia++) {
       for_simd_v(iv, NSIMDVL) {
-	int haddr = addr_rank1(hydro->nsite, NHDIM, index1[iv], ia);
-	u1[ia][iv] = hydro->u->data[haddr];
+	u1[ia][iv] = hydro->u[addr_rank1(hydro->nsite,NHDIM,index1[iv],ia)];
       }
     }
 

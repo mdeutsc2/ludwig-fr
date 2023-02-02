@@ -53,21 +53,10 @@ int test_psi_sor_suite(void) {
 
   pe_create(MPI_COMM_WORLD, PE_QUIET, &pe);
 
-  {
-    int mpisz = pe_mpi_size(pe);
+  test_psi_sor_poisson(pe);
+  test_psi_sor_vare_poisson(pe);
 
-    if (mpisz > 4) {
-      /* It's really just a 1-d problem, so no large deompcositions */
-      pe_info(pe, "SKIP     ./unit/test_psi_sor\n");
-    }
-    else {
-      test_psi_sor_poisson(pe);
-      test_psi_sor_vare_poisson(pe);
-
-      pe_info(pe, "PASS     ./unit/test_psi_sor\n");
-    }
-  }
-
+  pe_info(pe, "PASS     ./unit/test_psi_sor\n");
   pe_free(pe);
 
   return 0;
@@ -94,16 +83,8 @@ int test_psi_sor_poisson(pe_t * pe) {
   assert(pe);
 
   cs_create(pe, &cs);
-  {
-    /* We need to control the decomposition (not in z, please) */
-    int ndims = 3;
-    int dims[3] = {0,0,1};
-
-    MPI_Dims_create(pe_mpi_size(pe), ndims, dims);
-    cs_nhalo_set(cs, 1);
-    cs_ntotal_set(cs, ntotal);
-    cs_decomposition_set(cs, dims);
-  }
+  cs_nhalo_set(cs, 1);
+  cs_ntotal_set(cs, ntotal);
   cs_init(cs);
 
   psi_create(pe, cs, 2, &psi);
@@ -120,7 +101,6 @@ int test_psi_sor_poisson(pe_t * pe) {
   psi_halo_rho(psi);
 
   /* Time step is -1 for no output. */
-
   psi_sor_poisson(psi, -1);
 
   test_charge1_exact(psi, fepsilon_constant);
@@ -328,7 +308,7 @@ static int test_charge1_exact(psi_t * obj, f_vare_t fepsilon) {
   int k, kp1, km1, index;
   int nlocal[3];
   int nz;
-  int ifail = 0;
+  int ifail;
 
   double * epsilon = NULL;             /* 1-d e = e(z) from fepsilon */
   double eph;                          /* epsilon(k + 1/2) */
@@ -411,7 +391,6 @@ static int test_charge1_exact(psi_t * obj, f_vare_t fepsilon) {
     if (k == 0) psi0 = psi;
 
     assert(fabs(b[k] - (psi - psi0)) < tolerance);
-    if (fabs(b[k] - (psi - psi0)) > tolerance) ifail += 1;
 
     /* Extra check on the differencing terms */
 
@@ -434,7 +413,6 @@ static int test_charge1_exact(psi_t * obj, f_vare_t fepsilon) {
       rhodiff = -(emh*psim1 - (emh + eph)*psi + eph*psip1);
 
       assert(fabs(rho0 - rhodiff) < tolerance);
-      if (fabs(rho0 - rhodiff) > tolerance) ifail += 1;
       rhotot += rho0;
     }
   }
@@ -446,7 +424,7 @@ static int test_charge1_exact(psi_t * obj, f_vare_t fepsilon) {
   free(a);
   free(epsilon);
 
-  return ifail;
+  return 0;
 }
 
 /*****************************************************************************

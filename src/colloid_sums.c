@@ -30,7 +30,7 @@
 #include <string.h>
 
 #include "pe.h"
-#include "coords.h"
+#include "coords_s.h"
 #include "colloids.h"
 #include "colloid_sums.h"
 

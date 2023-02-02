@@ -2,17 +2,18 @@
  *
  *  phi_stats.h
  *
+ *  $Id: phi_stats.h,v 1.5 2010-10-15 12:40:03 kevin Exp $
+ *
  *  Edinburgh Soft Matter and Statistical Physics Group
  *  and Edinburgh Parallel Computing Centre
  *
- *  (c) 2008-2023 The University of Edinburgh
- *
  *  Kevin Stratford (kevin@epcc.ed.ac.uk)
+ *  (c) The University of Edinburgh (2008)
  *
  *****************************************************************************/
 
-#ifndef LUDWIG_PHI_STATS_H
-#define LUDWIG_PHI_STATS_H
+#ifndef PHI_STATS_
+#define PHI_STATS_
 
 #include <mpi.h>
 #include "field.h"
@@ -20,6 +21,11 @@
 #include "bbl.h"
 
 int stats_field_info(field_t * obj, map_t * map);
+int stats_field_reduce(field_t * obj, map_t * map, double * fmin,
+		       double * fmax, double * fsum, double * fvar,
+		       double * fvol, int rank, MPI_Comm comm);
+int stats_field_local(field_t * obj, map_t * map, double * fmin, double * fmax,
+		      double * fsum, double * fvar, double * fvol);
 int stats_field_info_bbl(field_t * obj, map_t * map, bbl_t * bbl);
 
 #endif

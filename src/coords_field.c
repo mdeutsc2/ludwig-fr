@@ -20,6 +20,7 @@
 
 #include "pe.h"
 #include "util.h"
+#include "coords_s.h"
 #include "memory.h"
 #include "coords_field.h"
 

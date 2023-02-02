@@ -8,7 +8,7 @@
  *  Edinburgh Soft Matter and Statistical Physics Group and
  *  Edinburgh Parallel Computing Centre
  *
- *  (c) 2010-2023 The University of Edinburgh
+ *  (c) 2010-2019 The University of Edinburgh
  *
  *  Contributing authors:
  *  Kevin Stratford (kevin@epcc.ed.ac.uk)
@@ -16,73 +16,43 @@
  *****************************************************************************/
 
 #include <assert.h>
-#include <math.h>
 #include <stdlib.h>
 
 #include "pe.h"
 #include "coords.h"
-#include "kernel.h"
 #include "advection_s.h"
 #include "leslie_ericksen.h"
 
-__global__ static void leslie_update_kernel(kernel_ctxt_t * ktx,
-					    fe_polar_t * fe,
-					    field_t * fp,
-					    hydro_t * hydro,
-					    advflux_t * flux,
-					    leslie_param_t param);
+static double Gamma_;       /* Rotational diffusion constant */
+static double swim_ = 0.0;  /* Self-advection parameter */
 
-__global__ static void leslie_self_advection_kernel(kernel_ctxt_t * ktx,
-						    field_t * p,
-						    hydro_t * hydro,
-						    double swim);
-
-__device__ static void leslie_u_gradient_tensor(kernel_ctxt_t * ktx,
-						hydro_t * hydro,
-						int ic, int jc, int kc,
-						double w[3][3]);
+static int leslie_ericksen_update_fluid(fe_polar_t *fe,
+					field_t * p, hydro_t * hydro,
+					advflux_t * flux);
+static int leslie_ericksen_add_swimming_velocity(field_t * p,
+						 hydro_t * hydro);
 
 /*****************************************************************************
  *
- *  leslie_ericksen_create
+ *  leslie_ericken_gamma_set
  *
  *****************************************************************************/
 
-int leslie_ericksen_create(pe_t * pe, cs_t * cs, fe_polar_t * fe, field_t * p,
-			   const leslie_param_t * param,
-			   leslie_ericksen_t ** pobj) {
+int leslie_ericksen_gamma_set(const double gamma) {
 
-  leslie_ericksen_t * obj = NULL;
-
-  obj = (leslie_ericksen_t *) calloc(1, sizeof(leslie_ericksen_t));
-  assert(obj);
-
-  /* Initialise */
-
-  obj->pe = pe;
-  obj->cs = cs;
-  obj->fe = fe;
-  obj->p  = p;
-  obj->param = *param;
-
-  *pobj = obj;
-
+  Gamma_ = gamma;
   return 0;
 }
 
 /*****************************************************************************
  *
- *  leslie_ericksen_free
+ *  leslie_ericksen_swim_set
  *
  *****************************************************************************/
 
-int leslie_ericksen_free(leslie_ericksen_t ** pobj) {
+int leslie_ericksen_swim_set(const double s) {
 
-  assert(pobj && *pobj);
-
-  free(*pobj);
-  *pobj = NULL;
-
+  swim_ = s;
   return 0;
 }
 
@@ -98,44 +68,26 @@ int leslie_ericksen_free(leslie_ericksen_t ** pobj) {
  *
  *****************************************************************************/
 
-__host__ int leslie_ericksen_update(leslie_ericksen_t * obj, hydro_t * hydro) {
+int leslie_ericksen_update(cs_t * cs, fe_polar_t * fe, field_t * p,
+			   hydro_t * hydro) {
 
-  int nlocal[3] = {0};
+  int nf;
   advflux_t * flux = NULL;
 
-  assert(obj);
-  assert(hydro);
+  assert(cs);
+  assert(p);
 
-  cs_nlocal(obj->cs, nlocal);
-
-  /* Device version should allocate flux obj only once on creation. */
-  advflux_cs_create(obj->pe, obj->cs, 3, &flux);
+  field_nf(p, &nf);
+  assert(nf == NVECTOR);
+  advflux_cs_create(p->pe, cs, nf, &flux);
 
   if (hydro) {
-    /* Add self-advection term if present; halo swap; compute
-     * advective fluxes */
-    leslie_ericksen_self_advection(obj, hydro);
+    if (swim_ != 0.0) leslie_ericksen_add_swimming_velocity(p, hydro);
     hydro_u_halo(hydro);
-    advflux_cs_compute(flux, hydro, obj->p);
+    advflux_cs_compute(flux, hydro, p);
   }
 
-  {
-    /* Update driver */
-    dim3 nblk, ntpb;
-    kernel_info_t limits = {1, nlocal[X], 1, nlocal[Y], 1, nlocal[Z]};
-    kernel_ctxt_t * ctxt = NULL;
-
-    kernel_ctxt_create(obj->cs, 1, limits, &ctxt);
-    kernel_ctxt_launch_param(ctxt, &nblk, &ntpb);
-
-    tdpLaunchKernel(leslie_update_kernel, nblk, ntpb, 0, 0,
-		    ctxt->target, obj->fe->target, obj->p->target,
-		    hydro->target, flux->target, obj->param);
-    tdpAssert(tdpPeekAtLastError());
-    tdpAssert(tdpDeviceSynchronize());
-
-    kernel_ctxt_free(ctxt);
-  }
+  leslie_ericksen_update_fluid(fe, p, hydro, flux);
 
   advflux_free(flux);
 
@@ -144,168 +96,92 @@ __host__ int leslie_ericksen_update(leslie_ericksen_t * obj, hydro_t * hydro) {
 
 /*****************************************************************************
  *
- *  leslie_update_kernel
+ * leslie_ericksen_update_fluid
  *
- *  hydro is allowed to be NULL, in which case we have relaxational
- *  dynamics only.
+ *  hydro is allowed to be NULL, in which case there is relaxational
+ *  dynmaics only.
  *
  *****************************************************************************/
 
-__global__ static void leslie_update_kernel(kernel_ctxt_t * ktx,
-					    fe_polar_t * fe,
-					    field_t * fp,
-					    hydro_t * hydro,
-					    advflux_t * flux,
-					    leslie_param_t param) {
-  int kindex = 0;
-  int kiterations = 0;
+static int leslie_ericksen_update_fluid(fe_polar_t * fe,
+					field_t * fp,
+					hydro_t * hydro,
+					advflux_t * flux) {
+  int ic, jc, kc, index;
+  int im1, jm1, km1;
+  int ia, ib;
+  int nlocal[3];
+
+  double p[3];
+  double h[3];
+  double d[3][3];
+  double omega[3][3];
+  double w[3][3];
+  double sum;
+  fe_polar_param_t param;
   const double dt = 1.0;
 
-  assert(ktx);
   assert(fe);
   assert(fp);
   assert(flux);
 
-  kiterations = kernel_iterations(ktx);
+  fe_polar_param(fe, &param);
+  cs_nlocal(flux->cs, nlocal);
 
-  for_simt_parallel(kindex, kiterations, 1)  {
-
-    int ic    = kernel_coords_ic(ktx, kindex);
-    int jc    = kernel_coords_jc(ktx, kindex);
-    int kc    = kernel_coords_kc(ktx, kindex);
-    int index = kernel_coords_index(ktx, ic, jc, kc);
-
-    double p[3] = {0};
-    double h[3] = {0};          /* molecular field (vector) */
-    double w[3][3] = {0};       /* Velocity gradient tensor */
-    double d[3][3] = {0};       /* Symmetric velocity gradient tensor */
-    double omega[3][3] = {0};   /* Antisymmetric ditto */
-
-    field_vector(fp, index, p);
-    fe_polar_mol_field(fe, index, h);
-    if (hydro) leslie_u_gradient_tensor(ktx, hydro, ic, jc, kc, w);
-
-    /* Note that the convection for Leslie Ericksen is that
-     * w_ab = d_a u_b, which is the transpose of what the
-     * above returns. Hence an extra minus sign in the
-     * omega term in the following. */
-
-    for (int ia = 0; ia < 3; ia++) {
-      for (int ib = 0; ib < 3; ib++) {
-	d[ia][ib]     =  0.5*(w[ia][ib] + w[ib][ia]);
-	omega[ia][ib] = -0.5*(w[ia][ib] - w[ib][ia]);
-      }
+  for (ia = 0; ia < 3; ia++) {
+    for (ib = 0; ib < 3; ib++) {
+      w[ia][ib] = 0.0;
     }
-
-    /* updates involve the following fluxes */
-
-    int im1 = cs_index(flux->cs, ic-1, jc, kc);
-    int jm1 = cs_index(flux->cs, ic, jc-1, kc);
-    int km1 = cs_index(flux->cs, ic, jc, kc-1);
-
-    for (int ia = 0; ia < 3; ia++) {
-
-      double sum = 0.0;
-      for (int ib = 0; ib < 3; ib++) {
-	sum += param.lambda*d[ia][ib]*p[ib] - omega[ia][ib]*p[ib];
-      }
-
-      p[ia] += dt*(- flux->fx[addr_rank1(flux->nsite, 3, index, ia)]
-		   + flux->fx[addr_rank1(flux->nsite, 3, im1,   ia)]
-		   - flux->fy[addr_rank1(flux->nsite, 3, index, ia)]
-		   + flux->fy[addr_rank1(flux->nsite, 3, jm1,   ia)]
-		   - flux->fz[addr_rank1(flux->nsite, 3, index, ia)]
-		   + flux->fz[addr_rank1(flux->nsite, 3, km1,   ia)]
-		   + sum + param.Gamma*h[ia]);
-    }
-
-    field_vector_set(fp, index, p);
   }
 
-  return;
-}
+  for (ic = 1; ic <= nlocal[X]; ic++) {
+    for (jc = 1; jc <= nlocal[Y]; jc++) {
+      for (kc = 1; kc <= nlocal[Z]; kc++) {
 
-/*****************************************************************************
- *
- *  leslie_self_advection_kernel
- *
- *****************************************************************************/
+	index = cs_index(flux->cs, ic, jc, kc);
+	field_vector(fp, index, p);
+	fe_polar_mol_field(fe, index, h);
+	if (hydro) hydro_u_gradient_tensor(hydro, ic, jc, kc, w);
 
-__global__ static void leslie_self_advection_kernel(kernel_ctxt_t * ktx,
-						    field_t * p,
-						    hydro_t * hydro,
-						    double swim) {
-  int kindex = 0;
-  int kiterations = 0;
+	/* Note that the convection for Leslie Ericksen is that
+	 * w_ab = d_a u_b, which is the transpose of what the
+	 * above returns. Hence an extra minus sign in the
+	 * omega term in the following. */
 
-  assert(ktx);
-  assert(p);
-  assert(hydro);
+	for (ia = 0; ia < 3; ia++) {
+	  for (ib = 0; ib < 3; ib++) {
+	    d[ia][ib]     = 0.5*(w[ia][ib] + w[ib][ia]);
+	    omega[ia][ib] = -0.5*(w[ia][ib] - w[ib][ia]);
+	  }
+	}
 
-  kiterations = kernel_iterations(ktx);
+	/* updates involve the following fluxes */
 
-  for_simt_parallel(kindex, kiterations, 1) {
+        im1 = cs_index(flux->cs, ic-1, jc, kc);
+	jm1 = cs_index(flux->cs, ic, jc-1, kc);
+	km1 = cs_index(flux->cs, ic, jc, kc-1);
 
-    int ic    = kernel_coords_ic(ktx, kindex);
-    int jc    = kernel_coords_jc(ktx, kindex);
-    int kc    = kernel_coords_kc(ktx, kindex);
-    int index = kernel_coords_index(ktx, ic, jc, kc);
-    double p3[3] = {0};
-    double u3[3] = {0};
+	for (ia = 0; ia < 3; ia++) {
 
-    field_vector(p, index, p3);
-    hydro_u(hydro, index, u3);
+	  sum = 0.0;
+	  for (ib = 0; ib < 3; ib++) {
+	    sum += param.lambda*d[ia][ib]*p[ib] - omega[ia][ib]*p[ib];
+	  }
 
-    u3[X] += swim*p3[X];
-    u3[Y] += swim*p3[Y];
-    u3[Z] += swim*p3[Z];
+	  p[ia] += dt*(- flux->fx[addr_rank1(flux->nsite, 3, index, ia)]
+		       + flux->fx[addr_rank1(flux->nsite, 3, im1,   ia)]
+		       - flux->fy[addr_rank1(flux->nsite, 3, index, ia)]
+		       + flux->fy[addr_rank1(flux->nsite, 3, jm1,   ia)]
+		       - flux->fz[addr_rank1(flux->nsite, 3, index, ia)]
+		       + flux->fz[addr_rank1(flux->nsite, 3, km1,   ia)]
+		       + sum + Gamma_*h[ia]);
+	}
 
-    hydro_u_set(hydro, index, u3);
-  }
+	field_vector_set(fp, index, p);
 
-  return;
-}
-
-/*****************************************************************************
- *
- *  leslie_self_advection
- *
- *  Driver to add the self-advection velocity to the current hydro->u.
- *  This then appears in advective fluxes.
- *
- *  1. There is a somewhat open question on whether one really wants the
- *  self advection to appear anywhere else as a side-effect.
- *  2. If we have a halo in p, then we can avoid a halo in u.
- *
- *****************************************************************************/
-
-__host__ int leslie_ericksen_self_advection(leslie_ericksen_t * obj,
-					    hydro_t * hydro) {
-  int nlocal[3] = {0};
-
-  assert(obj);
-  assert(hydro);
-
-  cs_nlocal(obj->cs, nlocal);
-
-  /* Don't bother if swim = 0 */
-
-  if (fabs(obj->param.swim) > 0.0) {
-
-    dim3 nblk, ntpb;
-    kernel_info_t limits = {1, nlocal[X], 1, nlocal[Y], 1, nlocal[Z]};
-    kernel_ctxt_t * ctxt = NULL;
-
-    kernel_ctxt_create(obj->cs, 1, limits, &ctxt);
-    kernel_ctxt_launch_param(ctxt, &nblk, &ntpb);
-
-    tdpLaunchKernel(leslie_self_advection_kernel, nblk, ntpb, 0, 0,
-		    ctxt->target, obj->p->target, hydro->target,
-		    obj->param.swim);
-    tdpAssert(tdpPeekAtLastError());
-    tdpAssert(tdpDeviceSynchronize());
-
-    kernel_ctxt_free(ctxt);
+	/* Next lattice site */
+      }
+    }
   }
 
   return 0;
@@ -313,59 +189,39 @@ __host__ int leslie_ericksen_self_advection(leslie_ericksen_t * obj,
 
 /*****************************************************************************
  *
- *  leslie_u_gradient_tensor
- *
- *  A copy of the hydro_u_gradient_tensor() routine with no Lees-Edwards
- *  conditions.
- *
- *  A __device__ version is required.
+ *  leslie_ericksen_add_swimming_velocity
  *
  *****************************************************************************/
 
-__device__ static void leslie_u_gradient_tensor(kernel_ctxt_t * ktx,
-						hydro_t * hydro,
-						int ic, int jc, int kc,
-						double w[3][3]) {
+static int leslie_ericksen_add_swimming_velocity(field_t * fp,
+						 hydro_t * hydro) {
+  int ic, jc, kc, index;
+  int ia;
+  int nlocal[3];
+
+  double p[3];
+  double u[3];
+
+  assert(fp);
   assert(hydro);
 
-  int m1 = kernel_coords_index(ktx, ic - 1, jc, kc);
-  int p1 = kernel_coords_index(ktx, ic + 1, jc, kc);
+  cs_nlocal(fp->cs, nlocal);
 
-  w[X][X] = 0.5*(hydro->u->data[addr_rank1(hydro->nsite, NHDIM, p1, X)] -
-		 hydro->u->data[addr_rank1(hydro->nsite, NHDIM, m1, X)]);
-  w[Y][X] = 0.5*(hydro->u->data[addr_rank1(hydro->nsite, NHDIM, p1, Y)] -
-		 hydro->u->data[addr_rank1(hydro->nsite, NHDIM, m1, Y)]);
-  w[Z][X] = 0.5*(hydro->u->data[addr_rank1(hydro->nsite, NHDIM, p1, Z)] -
-		 hydro->u->data[addr_rank1(hydro->nsite, NHDIM, m1, Z)]);
+  for (ic = 1; ic <= nlocal[X]; ic++) {
+    for (jc = 1; jc <= nlocal[Y]; jc++) {
+      for (kc = 1; kc <= nlocal[Z]; kc++) {
 
-  m1 = kernel_coords_index(ktx, ic, jc - 1, kc);
-  p1 = kernel_coords_index(ktx, ic, jc + 1, kc);
+	index = cs_index(fp->cs, ic, jc, kc);
+	field_vector(fp, index, p);
+	hydro_u(hydro, index, u);
 
-  w[X][Y] = 0.5*(hydro->u->data[addr_rank1(hydro->nsite, NHDIM, p1, X)] -
-		 hydro->u->data[addr_rank1(hydro->nsite, NHDIM, m1, X)]);
-  w[Y][Y] = 0.5*(hydro->u->data[addr_rank1(hydro->nsite, NHDIM, p1, Y)] -
-		 hydro->u->data[addr_rank1(hydro->nsite, NHDIM, m1, Y)]);
-  w[Z][Y] = 0.5*(hydro->u->data[addr_rank1(hydro->nsite, NHDIM, p1, Z)] -
-		 hydro->u->data[addr_rank1(hydro->nsite, NHDIM, m1, Z)]);
-
-  m1 = kernel_coords_index(ktx, ic, jc, kc - 1);
-  p1 = kernel_coords_index(ktx, ic, jc, kc + 1);
-
-  w[X][Z] = 0.5*(hydro->u->data[addr_rank1(hydro->nsite, NHDIM, p1, X)] -
-		 hydro->u->data[addr_rank1(hydro->nsite, NHDIM, m1, X)]);
-  w[Y][Z] = 0.5*(hydro->u->data[addr_rank1(hydro->nsite, NHDIM, p1, Y)] -
-		 hydro->u->data[addr_rank1(hydro->nsite, NHDIM, m1, Y)]);
-  w[Z][Z] = 0.5*(hydro->u->data[addr_rank1(hydro->nsite, NHDIM, p1, Z)] -
-		 hydro->u->data[addr_rank1(hydro->nsite, NHDIM, m1, Z)]);
-
-  /* Enforce tracelessness */
-
-  {
-    double tr = (1.0/3.0)*(w[X][X] + w[Y][Y] + w[Z][Z]);
-    w[X][X] -= tr;
-    w[Y][Y] -= tr;
-    w[Z][Z] -= tr;
+	for (ia = 0; ia < 3; ia++) {
+	  u[ia] += swim_*p[ia];
+	}
+	hydro_u_set(hydro, index, u);
+      }
+    }
   }
 
-  return;
+  return 0;
 }

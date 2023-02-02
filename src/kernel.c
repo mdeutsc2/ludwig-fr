@@ -20,6 +20,7 @@
 #include <stdio.h>
 
 #include "pe.h"
+#include "coords_s.h"
 #include "kernel.h"
 
 /* Static kernel context information */

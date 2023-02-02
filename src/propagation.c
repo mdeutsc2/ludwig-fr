@@ -19,6 +19,7 @@
 #include <string.h>
 
 #include "pe.h"
+#include "coords_s.h"
 #include "kernel.h"
 #include "propagation.h"
 #include "timer.h"

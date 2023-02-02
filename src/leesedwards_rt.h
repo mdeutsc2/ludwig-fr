@@ -2,7 +2,6 @@
  *
  *  leesedwards_rt.h
  *
- *  See comment in leesedwards_rt.c.
  *
  *****************************************************************************/
 
@@ -10,8 +9,8 @@
 #define LUDWIG_LEESEDWARDS_RT_H
 
 #include "runtime.h"
-#include "lees_edwards_options.h"
+#include "leesedwards.h"
 
-int lees_edw_init_rt(rt_t * rt, lees_edw_options_t * info);
+int lees_edw_init_rt(rt_t * rt, lees_edw_info_t * info);
 
 #endif

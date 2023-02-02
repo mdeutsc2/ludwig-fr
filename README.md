@@ -77,12 +77,9 @@ See `CONTRIBUTING.md` for further details of testing and
 development.
 
 
-#### Credits
+#### Attribution
 
 Please cite the original U. Edinburgh Soft Matter Group repository for Ludwig that this code is forked from.
-
-From Version 0.19.0 we have included a copy of `cJSON` which is released
-under an MIT license by Gave Gamble at https://github.com/DaveGamble/cJSON.
 
 #### Help
 

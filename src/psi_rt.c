@@ -27,7 +27,6 @@
 #include "psi_rt.h"
 #include "psi_init.h"
 #include "io_harness.h"
-#include "util_bits.h"
 
 /*****************************************************************************
  *
@@ -257,7 +256,7 @@ int psi_rt_init_rho(pe_t * pe, rt_t * rt, psi_t * obj, map_t * map) {
     psi_epsilon2(obj, &eps2);
 
     /* Unless really the same number ... */
-    if (0 == util_double_same(eps1, eps2)) {
+    if (eps1 != eps2) {
       psi_debye_length2(obj, rho_el, &ld2);
       pe_info(pe, "Second Debye length:      %14.7e\n", ld2);
     }
@@ -289,7 +288,7 @@ int psi_rt_init_rho(pe_t * pe, rt_t * rt, psi_t * obj, map_t * map) {
     psi_epsilon2(obj, &eps2);
 
     /* Unless really the same number... */
-    if (0 == util_double_same(eps1, eps2)) {
+    if (eps1 != eps2) {
       psi_debye_length2(obj, rho_el, &ld2);
       pe_info(pe, "Second Debye length:      %14.7e\n", ld2);
     }
