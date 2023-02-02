@@ -327,12 +327,16 @@ __host__ int blue_phase_init_rt(pe_t * pe, rt_t *rt,
       w1_wall = w1;
       w2_wall = 0.0;
       rt_int_parameter(rt, "lc_wall_patterned_ndefects", &ndefects);
-      rt_double_nvector(rt, "lc_wall_patterned_defects", 9, &defects, RT_FATAL);
+      //rt_double_nvector(rt, "lc_wall_patterned_defects", 9, defects, RT_FATAL);
       rt_int_parameter(rt, "lc_wall_patterned_xdefects", &xdefects);
       rt_int_parameter(rt, "lc_wall_patterned_ydefects", &ydefects);
       rt_int_parameter(rt, "lc_wall_patterned_xspacing", &xspacing);
       rt_int_parameter(rt, "lc_wall_patterned_yspacing", &yspacing);
-      pe_info(pe, "Patterned type only works with s7 method");
+      fe_param.wall.ndefects = ndefects;
+      fe_param.wall.xdefects = xdefects;
+      fe_param.wall.ydefects = ydefects;
+      fe_param.wall.xspacing = xspacing;
+      fe_param.wall.yspacing = yspacing;
     }
 
     /* Colloids default, then look for specific value */
@@ -379,6 +383,12 @@ __host__ int blue_phase_init_rt(pe_t * pe, rt_t *rt,
     if (fe_param.anchoring_wall == LC_ANCHORING_FIXED) {
       pe_info(pe, "Wall fixed anchoring orientation = %14.7e %14.7e %14.7e\n",
 	      fe_param.nfix[X], fe_param.nfix[Y], fe_param.nfix[Z]);
+    }
+    if (fe_param.anchoring_wall == LC_ANCHORING_PATTERNED) {
+        pe_info(pe, "Wall patterned anchoring orientation: \n");
+        pe_info(pe, "ndefects = %d\n",fe_param.wall.ndefects);
+        pe_info(pe, "xdefects = %d, ydefects %d\n",fe_param.wall.xdefects,fe_param.wall.ydefects);
+        pe_info(pe, "xspacing = %d, yspacing %d\n",fe_param.wall.xspacing,fe_param.wall.yspacing);
     }
 
     /* For computed anchoring order [see fe_lc_amplitude_compute()] */
@@ -739,7 +749,7 @@ int blue_phase_rt_wall_anchoring(pe_t * pe, rt_t * rt, rt_enum_t rt_err_level,
           "ndefects>9 (3x3) not supported yet. Change in lc_anchoring.h and blue_phase_rt.c\n");
       }
       /* must allocate defects here?*/
-      rt_double_nvector(rt, "lc_wall_patterned_defects", 9, wall->defects, RT_FATAL);
+      rt_double_nvector(rt, "lc_wall_patterned_defects", 2, wall->defects, RT_FATAL);
       rt_int_parameter(rt, "lc_wall_patterned_xdefects", &wall->xdefects);
       rt_int_parameter(rt, "lc_wall_patterned_ydefects", &wall->ydefects);
       rt_int_parameter(rt, "lc_wall_patterned_xspacing", &wall->xspacing);

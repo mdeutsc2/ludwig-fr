@@ -272,4 +272,74 @@ static inline void lc_anchoring_planar_ct(const lc_anchoring_param_t * anchor,
   return;
 }
 
+/****************************************************************************
+ *
+ *  lc_anchoring_patterned_q0
+ *
+ *  This is where we calculate the q for each different lattice point on the
+ *  surface given a location of defects
+ *  Preferred anchoring q0 for fixed anchoring unit director nfix:
+ *
+ *    Q_ab = 0.5*amp*(3.0 nfix_a nfix_b - delta_ab)
+ *
+ ****************************************************************************/
+
+__host__ __device__
+static inline void lc_anchoring_patterned_q0(const double nhat[3],
+                                         double amp,
+                                         double q0[3][3]) {
+    /* TODO check if Qij calc is correct*/
+    q0[X][X] = 0.5*amp*(3.0*nhat[X]*nhat[X] - 1.0);
+    q0[X][Y] = 0.5*amp*(3.0*nhat[X]*nhat[Y] - 0.0);
+    q0[X][Z] = 0.5*amp*(3.0*nhat[X]*nhat[Z] - 0.0);
+
+    q0[Y][X] = 0.5*amp*(3.0*nhat[Y]*nhat[X] - 0.0);
+    q0[Y][Y] = 0.5*amp*(3.0*nhat[Y]*nhat[Y] - 1.0);
+    q0[Y][Z] = 0.5*amp*(3.0*nhat[Y]*nhat[Z] - 0.0);
+
+    q0[Z][X] = 0.5*amp*(3.0*nhat[Z]*nhat[X] - 0.0);
+    q0[Z][Y] = 0.5*amp*(3.0*nhat[Z]*nhat[Y] - 0.0);
+    q0[Z][Z] = 0.5*amp*(3.0*nhat[Z]*nhat[Z] - 1.0);
+
+    return;
+}
+
+/*****************************************************************************
+ *
+ *  lc_anchoring_patterned_ct
+ *  The planar non-degenerate boundary condition as described by
+ *  Nobili and Durand.
+ *  Compute the constant term in the boundary condition equation.
+ *  This is
+ *
+ *    -kappa1 q0 nhat_g ( e_agh Q_hb + e_bgh Q_ha) - w1 (Q_ab - Q^0_ab)
+ *
+ *  The Q_ab is the surface Q tensor: argument qs.
+ *
+ *****************************************************************************/
+
+__host__ __device__
+static inline void lc_anchoring_patterned_ct(const lc_anchoring_param_t * anch,
+                                         double nhat[3],
+                                         const double qs[3][3],
+                                         double kappa1,
+                                         double q0,
+                                         double amp,
+                                         double ct[3][3]) {
+    double qfix[3][3] = {0};
+
+    assert(anch->type == LC_ANCHORING_PATTERNED);
+
+
+    lc_anchoring_kappa1_ct(kappa1, q0, nhat, qs, ct);
+    lc_anchoring_patterned_q0(anch->nfix, amp, qfix);
+
+    for (int ia = 0; ia < 3; ia++) {
+        for (int ib = 0; ib < 3; ib++) {
+            ct[ia][ib] += -anch->w1*(qs[ia][ib] - qfix[ia][ib]);
+        }
+    }
+
+    return;
+}
 #endif

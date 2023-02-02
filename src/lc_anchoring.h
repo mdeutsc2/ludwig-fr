@@ -37,7 +37,8 @@ struct lc_anchoring_param_s {
   int ydefects;
   int xspacing;
   int yspacing;
-  double defects[9]; /*flexible array must be at the end of the struct*/
+  /* TODO change this also in blue_phase_rt.c:752??? when changing number of defects */
+  double defects[2]; /*flexible array must be at the end of the struct*/
 };
 
 const char * lc_anchoring_type_from_enum(lc_anchoring_enum_t type);

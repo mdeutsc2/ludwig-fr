@@ -119,6 +119,8 @@
 #include "fe_lc_stats.h"
 #include "fe_ternary_stats.h"
 
+#include "lc_anchoring.h" //added to get char from enum type
+
 #include "ludwig.h"
 
 typedef struct ludwig_s ludwig_t;
@@ -534,7 +536,11 @@ void ludwig_run(const char * inputfile) {
     psi_stats_info(ludwig->psi);
   }
   ludwig_report_momentum(ludwig);
-
+  /* TODO add defect calculations here */
+  int ntotal[3] = {0}; //nx,ny,nz
+  cs_ntotal(ludwig->cs,ntotal);
+  pe_info(ludwig->pe, "Matt's System size:    %d %d %d\n",ntotal[X], ntotal[Y], ntotal[Z]);
+  //ludwig->fe_lc_param->wall->type
   /* Main time stepping loop */
 
   pe_info(ludwig->pe, "\n");
@@ -599,6 +605,7 @@ void ludwig_run(const char * inputfile) {
       field_grad_compute(ludwig->p_grad);
     }
 
+    /* start of the liquid crystal routines? */
     if (ludwig->q) {
       TIMER_start(TIMER_PHI_HALO);
       field_halo(ludwig->q);

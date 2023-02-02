@@ -965,6 +965,11 @@ __host__ __device__ void grad_s7_boundary_coll(fe_lc_param_t * param,
     if (anchor->type == LC_ANCHORING_PLANAR) {
       lc_anchoring_planar_ct(anchor, qs, rhat, kappa1, q0, amp, c);
     }
+
+//    if (anchor->type == LC_ANCHORING_PATTERNED) {
+//
+//        lc_anchoring_patterned_ct(anchor, rhat,qs, kappa1, q0, amp, c);
+//    }
   }
 
   return;
@@ -982,9 +987,11 @@ __host__ __device__ void grad_s7_boundary_coll(fe_lc_param_t * param,
  *****************************************************************************/
 
 __host__ __device__ void grad_s7_boundary_wall(fe_lc_param_t * param,
+                           int ntotal[3],
 					       const double qs[3][3],
 					       const int di[3],
-					       double c[3][3]) {
+					       double c[3][3],
+                           int ic, int jc, int kc) {
 
   double nhat[3] = {1.0*di[X], 1.0*di[Y], 1.0*di[Z]};
   double amp     = 0.0;
@@ -1016,7 +1023,65 @@ __host__ __device__ void grad_s7_boundary_wall(fe_lc_param_t * param,
       lc_anchoring_planar_ct(anchor, qs, nhat, kappa1, q0, amp, c);
     }
     if (anchor->type == LC_ANCHORING_PATTERNED){
-      /*TODO add lc_anchoring_patterned_ct in lc_anchoring_impl.h*/
+        //temp variables for defect calculation
+        double phi;
+        double th[64][64] = {0};
+        double xx[2];
+        double yy[2];
+        double q[2];
+        double defects[1][2];
+        int id = 0;
+        /* TODO  */
+        // reshaping the anch->defects array into a 2d array
+        /*for (int i = 0; i<=anch->xdefects-1; i++) {
+            for (int j = 0; j<=anch->ydefects-1;j++) {
+                oneDindex = i *
+            }
+        }*/
+        anchor->w1 = 0.1;
+        defects[0][0] = 0.5;
+        defects[0][1] = -0.5; //ydefects = 2
+        if (anchor->ndefects>=1) {
+            for (int ii = 1; ii<=anchor->xdefects; ii++){
+                for (int jj = 1; jj<=anchor->ydefects; jj++) {
+                    //id = id + 1;
+                    if (anchor->xspacing != 0) {
+                        xx[id] = (double)(ii*anchor->xspacing) + 0.5;
+                        xx[id] = xx[id] + (1.0-((double)anchor->xspacing*((double)anchor->xdefects+1.0))/(double)ntotal[0])*((double)ntotal[0]/2);
+                    } else{
+                        xx[id] = ii*((double)ntotal[0])/((double)anchor->xdefects+1.0)*0.5;
+                    }
+                    if (anchor->yspacing != 0) {
+                        yy[id] = (double)(jj*anchor->yspacing) + 0.5;
+                        yy[id] = yy[id] + (1.0-((double)anchor->yspacing*((double)anchor->ydefects+1.0))/(double)ntotal[1])*((double)ntotal[1]/2);
+                    } else {
+                        yy[id] = jj*((double)ntotal[1])/((double)anchor->ydefects+1.0)*0.5;
+                    }
+                    q[id] = defects[ii-1][jj-1];
+                    id = id + 1;
+                }
+            }
+        } else {
+            id = 1;
+            xx[0] = (double)ntotal[0]/2 + 0.5;
+            yy[0] = (double)ntotal[1]/2 + 0.5;
+        }
+
+        //set th array to all zeros here?
+        //memset(th,0.0,sizeof(th));
+        for(int idefect = 1; idefect<=id; idefect ++ ) {
+            for (int i = 0; i <= ntotal[0]-1; i++) {
+                for (int j=0; j<= ntotal[1]-1; j++) {
+                    phi = atan(((double)(j+1)-yy[idefect-1])/((double)(i+1)-xx[idefect-1]));
+                    th[i][j] += q[idefect-1]*phi + 3.141593/4.0;
+                }
+            }
+        }
+        nhat[X] = cos(th[ic][jc]);
+        nhat[Y] = sin(th[ic][jc]);
+        nhat[Z] = 0.0;
+
+        lc_anchoring_patterned_ct(anchor, nhat,qs, kappa1, q0, amp, c);
     }
   }
 
@@ -1043,7 +1108,10 @@ __host__ __device__ int grad_s7_boundary_c(fe_lc_param_t * param,
   assert(status != MAP_FLUID);
 
   if (status == MAP_BOUNDARY) {
-    grad_s7_boundary_wall(param, qs, di, c);
+    int ntotal[3] = {0};
+    cs_ntotal(anch->cs,ntotal);
+    grad_s7_boundary_wall(param, ntotal,qs, di, c,ic,jc,kc);
+
   }
   else if (status == MAP_COLLOID) {
     /* Compute relevant vector from colloid centre to fluid site. */

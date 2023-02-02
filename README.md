@@ -4,9 +4,11 @@
 A lattice Boltzmann code for complex fluids. This is a fork of the popular Ludwig LB code for complex fluids with additions made for the simulation of complex disclination structures in liquid crystals.
 
 #### Major Changes
+    * added wall anchoring "patterned" for 2d defects patterned on walls
 
 #### Todo
  * Anchoring surface patterning for 2D LC defects
+ * Asymmetric walls
  * Cmake?
 
 
@@ -77,10 +79,7 @@ development.
 
 #### Attribution
 
-[![DOI](https://zenodo.org/badge/137508275.svg)](https://zenodo.org/badge/latestdoi/137508275)
-
-Recent release versions have a Zenodo-provided DOI. Please consider using the
-appropriate DOI as a reference if you use Ludwig in your publications.
+Please cite the original U. Edinburgh Soft Matter Group repository for Ludwig that this code is forked from.
 
 #### Help
 
